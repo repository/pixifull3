@@ -170,6 +170,10 @@ export class PixivIllustEmedder implements Embedder<PixivIllustUrl> {
 
     const { body: data } = (await illustResponse.json()) as PixivIllust.Response;
 
+    if (data.xRestrict) {
+      throw new Error(`r-18: ${url.id}`);
+    }
+
     let userImage: string | undefined = undefined;
 
     for (const key in data.userIllusts) {
