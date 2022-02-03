@@ -31,7 +31,6 @@
     "cheerio": "^1.0.0-rc.10",
     "discord.js": "^13.6.0",
     "dotenv": "^14.3.2",
-    "erlpack": "github:discord/erlpack",
     "he": "^1.2.0",
     "markdown-truncate": "^1.0.4",
     "node-fetch": "^2.6.7",

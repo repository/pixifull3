@@ -111,7 +111,7 @@ export class PixivIllustEmedder implements Embedder<PixivIllustUrl> {
     const priority: (keyof typeof urls)[] = ["original", "regular"];
 
     for (const quality of priority) {
-      const url = this.getProxiedUrl(urls[quality]);
+      const url = urls[quality];
 
       const response = await fetch(url, {
         method: "HEAD",
@@ -122,12 +122,9 @@ export class PixivIllustEmedder implements Embedder<PixivIllustUrl> {
         throw new Error(`size check failed: ${response.status} ${url}`);
       }
 
-      const length = parseInt(
-        response.headers.get("content-length") || (await response.buffer()).byteLength.toString(),
-        10,
-      );
+      const length = parseInt(response.headers.get("content-length") || "", 10);
 
-      if (typeof length !== "number" || !isFinite(length)) {
+      if (!isFinite(length)) {
         throw new Error(`size check failed: could not determine content length ${url}`);
       }
 
