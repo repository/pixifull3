@@ -7,6 +7,7 @@ RUN jq '{ dependencies, devDependencies, scripts }' < /tmp/package.json > /tmp/p
 # build
 FROM node:16.13.2-alpine3.15 AS builder
 WORKDIR /app
+RUN apk update && apk add --no-cache python3 py3-pip make zlib-dev g++
 COPY tsconfig.json ./
 COPY --from=prep /tmp/prepared.json ./package.json
 COPY package-lock.json ./
