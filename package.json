@@ -33,7 +33,7 @@
     "dotenv": "^14.3.2",
     "erlpack": "github:discord/erlpack",
     "he": "^1.2.0",
-    "markdown-truncate": "^1.0.4",
+    "markdown-truncate": "github:repository/markdown-truncate",
     "node-fetch": "^2.6.7",
     "utf-8-validate": "^5.0.8",
     "zlib-sync": "^0.1.7"

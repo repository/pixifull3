@@ -84,7 +84,13 @@ export class PixivIllustEmedder implements Embedder<PixivIllustUrl> {
     const clean = (el: Cheerio<Node>) => {
       for (const child of el.contents()) {
         if (child.type === "text") {
-          $(child).replaceWith(he.encode(Discord.Util.escapeMarkdown(he.decode($.html(child)))));
+          let text = he.decode($.html(child));
+
+          if (/^https?:\/\/[^\s<]+[^<.,:;"'\]\s]$/.test(text)) continue;
+
+          text = he.encode(Discord.Util.escapeMarkdown(text));
+
+          $(child).replaceWith(text);
         } else {
           clean($(child));
         }
@@ -93,7 +99,15 @@ export class PixivIllustEmedder implements Embedder<PixivIllustUrl> {
 
     clean($.root());
     $("br").map((_, e) => $(e).replaceWith("\n"));
-    $("a").map((_, e) => $(e).replaceWith(`[${$(e).text()}](${$(e).attr("href")})`));
+    $("a").map((_, e) => {
+      let link = $(e).attr("href");
+
+      if (link?.startsWith("/jump.php?")) {
+        link = decodeURIComponent(link.slice(10));
+      }
+
+      $(e).replaceWith(`[${$(e).text()}](${link})`);
+    });
     $("strong").map((_, e) => $(e).replaceWith(`**${$(e).text()}**`));
     $("*").map((_, e) => $(e).replaceWith($(e).text()));
 
