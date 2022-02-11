@@ -2,9 +2,10 @@ import cheerio, { Cheerio, Node } from "cheerio";
 import Discord, { EmbedFieldData } from "discord.js";
 import he from "he";
 import mdtruncate from "markdown-truncate";
-import fetch from "node-fetch";
+import { Response } from "node-fetch";
 import { URL } from "url";
 import { PixivIllust, PixivIllustPages } from "../../../interfaces/pixiv-illust";
+import { fetchRetry, indent } from "../../../util";
 import { Embedder, ParsedUrl } from "../base.embedder";
 
 export type Range = [number, number];
@@ -121,26 +122,36 @@ export class PixivIllustEmedder implements Embedder<PixivIllustUrl> {
     return new URL(new URL(url).pathname, this.PIXIV_PROXY_ENDPONT).toString();
   }
 
+  private getContentLength(response: Response) {
+    const length = parseInt(response.headers.get("content-length") || "", 10);
+    return isFinite(length) ? length : null;
+  }
+
   private async findSuitableImage(urls: PixivIllust.Urls | PixivIllustPages.Urls) {
     const priority: (keyof typeof urls)[] = ["original", "regular"];
 
     for (const quality of priority) {
       const url = urls[quality];
-
-      const response = await fetch(url, {
-        method: "HEAD",
-        headers: { Referer: "http://www.pixiv.net/" },
-      });
-
-      if (!response.ok) {
-        throw new Error(`size check failed: ${response.status} ${url}`);
+      let response: Response;
+      try {
+        response = await fetchRetry(url, {
+          retries: 3,
+          timeout: 500,
+          passed: (res) => {
+            if (!res.ok) {
+              throw new Error(`${res.status} ${res.statusText}`);
+            } else if (!this.getContentLength(res)) {
+              throw new Error("content length missing or invalid");
+            }
+          },
+          method: "HEAD",
+          headers: { Referer: "http://www.pixiv.net/" },
+        });
+      } catch (error) {
+        throw new Error(`could not determine content length: ${url}\n${indent(error)}`);
       }
 
-      const length = parseInt(response.headers.get("content-length") || "", 10);
-
-      if (!isFinite(length)) {
-        throw new Error(`size check failed: could not determine content length ${url}`);
-      }
+      const length = this.getContentLength(response)!;
 
       if (length > 10 * 1024 * 1024) {
         continue;
@@ -173,10 +184,15 @@ export class PixivIllustEmedder implements Embedder<PixivIllustUrl> {
 
   public async generate(url: PixivIllustUrl) {
     const illustUrl = this.PIXIV_AJAX_ENDPONT + url.id;
-    const illustResponse = await fetch(illustUrl);
+    let illustResponse: Response;
 
-    if (!illustResponse.ok) {
-      throw new Error(`failed to get illust info: ${illustResponse.status} ${illustUrl}`);
+    try {
+      illustResponse = await fetchRetry(illustUrl, {
+        retries: 3,
+        timeout: 500,
+      });
+    } catch (error) {
+      throw new Error(`could not get illust data: ${illustUrl}\n${indent(error)}`);
     }
 
     const { body: data } = (await illustResponse.json()) as PixivIllust.Response;
@@ -201,13 +217,18 @@ export class PixivIllustEmedder implements Embedder<PixivIllustUrl> {
       pages = [[this.convertIllustToPage(data), 1]];
     } else {
       const pagesUrl = illustUrl + "/pages";
-      const pagesResponse = await fetch(pagesUrl);
+      let allPages: PixivIllustPages.Page[];
 
-      if (!pagesResponse.ok) {
-        throw new Error(`failed to get illust pages: ${pagesResponse.status} ${pagesUrl}`);
+      try {
+        allPages = await fetchRetry(pagesUrl, {
+          retries: 3,
+          timeout: 500,
+        })
+          .then((res) => res.json() as Promise<PixivIllustPages.Response>)
+          .then((data) => data.body);
+      } catch (error) {
+        throw new Error(`could not get pages: ${pagesUrl}\n${indent(error)}`);
       }
-
-      const { body: allPages } = (await pagesResponse.json()) as PixivIllustPages.Response;
 
       pages = this.getPagesInRange(url.range, allPages);
 
